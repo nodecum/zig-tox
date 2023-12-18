@@ -1,5 +1,6 @@
-pub const tox_core = @import("tox_core.zig");
-pub const tox_packet = @import("tox_packet.zig");
+pub const core = @import("core.zig");
+pub const packet = @import("packet.zig");
+pub const sort = @import("sort.zig");
 
 const testing = @import("std").testing;
 

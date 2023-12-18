@@ -1,4 +1,5 @@
 const std = @import("std");
+const tox = @import("tox");
 const sodium = @import("sodium");
 const net = std.net;
 const testing = std.testing;
@@ -8,6 +9,7 @@ const PublicKey = sodium.PublicKey;
 
 const Order = std.math.Order;
 const ArrayListUnmanaged = std.ArrayListUnmanaged;
+const binarySearch = tox.sort.binarySearch;
 
 /// Calculate the [`k-tree`](../ktree/struct.Ktree.html) index of a PK compared
 /// to "own" PK.
@@ -65,10 +67,14 @@ test "kbucket distance test" {
     try expectEqual(distance(&pk_fe, &pk_ff, &pk_02), .lt);
 }
 
+const PackedNode = struct {
+    pk: PublicKey,
+};
+
 const KBucketPackedNode = struct {
-    const Node = comptime PackedNode;
-    const NewNode = comptime PackedNode;
-    const CheckNode = comptime PackedNode;
+    const Node = PackedNode;
+    const NewNode = PackedNode;
+    const CheckNode = PackedNode;
     /// Check if the node can be updated with a new one.
     fn is_outdated(self: Node, other: CheckNode) bool {
         return self.saddr != other.saddr;
@@ -79,12 +85,14 @@ const KBucketPackedNode = struct {
     }
     /// Check if the node can be evicted.
     fn is_evictable(self: Node) bool {
+        _ = self;
         return false;
     }
     /// Find the index of a node that should be evicted in case if `Kbucket` is
     /// full. It must return `Some` if and only if nodes list contains at least
     /// one evictable node.
     fn eviction_index(nodes: []Node) ?usize {
+        _ = nodes;
         return null;
     }
     //   fn eviction_index(nodes: &[Self]) -> Option<usize> {
@@ -96,6 +104,7 @@ fn KBucket(comptime KBucketNode: type) type {
     const Node = comptime KBucketNode.Node;
     const NewNode = comptime KBucketNode.NewNode;
     const CheckNode = comptime KBucketNode.CheckNode;
+    _ = CheckNode;
     const cmpFn = struct {
         fn cmp(k0: *const PublicKey, k2: *const PublicKey, n: Node) Order {
             return distance(k0, n.pk, k2);
@@ -110,13 +119,64 @@ fn KBucket(comptime KBucketNode: type) type {
             };
         }
         fn find(self: Self, base_pk: *const PublicKey, pk: *const PublicKey) ?usize {
-            return std.sort.binarySearch(Node, pk, self.nodes, base_pk, cmpFn);
+            const res = binarySearch(Node, pk, self.nodes.items, base_pk, cmpFn);
+            if (res.found) {
+                return res.index;
+            } else {
+                return null;
+            }
         }
         /// Get reference to a `KbucketNode` by it's `PublicKey`.
         pub fn getNode(self: Self, base_pk: *const PublicKey, pk: *const PublicKey) ?*Node {
             if (self.find(base_pk, pk)) |i| {
-                return self.nodes[i];
+                return self.nodes.items[i];
             } else return null;
+        }
+        pub fn tryAdd(self: Self, base_pk: *const PublicKey, new_node: NewNode, evict: bool) bool {
+            const res = binarySearch(Node, new_node.pk, self.nodes.items, base_pk, cmpFn);
+            if (res.found) {
+                self.nodes.items[res.index] = new_node;
+                return true;
+            } else {
+                if (!evict || res.index == self.nodes.items.len) {
+                    // index is pointing past the end
+                    // we are not going to evict the farthest node or the current
+                    // node is the farthest one
+                    if (self.nodes.capacity == self.nodes.items.len) {
+                        // list is full
+                        if (Node.eviction_index(self.nodes)) |eviction_index| {
+                            // replace the farthest bad node
+                            self.nodes.orderedRemove(eviction_index);
+                            const i = res.index - @as(usize, eviction_index < res.index);
+                            self.nodes.insertAssumeCapacity(i, new_node);
+                            return true;
+                        } else {
+                            // Node can't be added to the kbucket.
+                            return false;
+                        }
+                    } else {
+                        // distance to the PK was bigger than the other keys, but
+                        // there's still free space in the kbucket for a node
+                        self.nodes.insertAssumeCapacity(res.index, new_node);
+                        return true;
+                    }
+                } else {
+                    // index is pointing inside the list
+                    // we are going to evict the farthest node if the kbucket is full
+                    if (self.nodes.capacity == self.nodes.items.len) {
+                        var eviction_index = self.nodes.items.len - 1;
+                        if (Node.eviction_index(self.nodes.items)) |i| {
+                            eviction_index = i;
+                        }
+                        self.nodes.orderedRemove(eviction_index);
+                        const i = res.index - @as(usize, eviction_index < res.index);
+                        self.nodes.insertAssumeCapacity(i, new_node);
+                    } else {
+                        self.nodes.insertAssumeCapacity(res.index, new_node);
+                    }
+                    return true;
+                }
+            }
         }
     };
 }

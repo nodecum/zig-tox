@@ -1,5 +1,5 @@
 .{
-    .name = "zig-toxcore",
+    .name = "zig-tox",
     .version = "0.0.1",
     .dependencies = .{
         .libsodium = .{

@@ -1,5 +1,4 @@
-pub const dht = @import("tox_core/dht.zig");
-
+pub const dht = @import("core/dht.zig");
 const testing = @import("std").testing;
 
 test {

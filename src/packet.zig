@@ -1,4 +1,4 @@
-pub const dht = @import("tox_packet/dht.zig");
+pub const dht = @import("packet/dht.zig");
 
 const testing = @import("std").testing;
 
