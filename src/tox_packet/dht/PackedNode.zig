@@ -5,7 +5,7 @@ const PublicKey = sodium.PublicKey;
 pub const PackedNode = @This();
 
 /// Socket Addr of node.
-saddr: net.Address,
+saddr: Address,
 /// Public key of the node.
 pk: PublicKey,
 
