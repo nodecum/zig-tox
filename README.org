@@ -1,0 +1,11 @@
+* zig-toxcore
+zig implementation of the tox protocol
+
+This is the begin of translating the [[https://github.com/tox-rs/tox][Rust implementation]]
+of the tox protocol to [[ziglang.org][Zig]].
+
+** Build
+: zig build test
+
+** License
+Licensed under [[file:LICENSE][GPLv3+]].
