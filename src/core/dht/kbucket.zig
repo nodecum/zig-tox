@@ -64,6 +64,7 @@ test "kbucket distance test" {
     const pk_ff = [_]u8{0xff} ** size;
     const pk_fe = [_]u8{0xfe} ** size;
     try expectEqual(distance(&pk_00, &pk_01, &pk_02), .lt);
+    try expectEqual(distance(&pk_00, &pk_02, &pk_01), .gt);
     try expectEqual(distance(&pk_02, &pk_02, &pk_02), .eq);
     try expectEqual(distance(&pk_02, &pk_00, &pk_01), .lt);
     try expectEqual(distance(&pk_02, &pk_ff, &pk_fe), .gt);
@@ -109,7 +110,7 @@ fn KBucket(comptime KBucketNode: type) type {
     _ = CheckNode;
     const cmpFn = struct {
         fn cmp(k0: *const PublicKey, k2: *const PublicKey, n: Node) Order {
-            return distance(k0, &n.pk, k2);
+            return distance(k0, k2, &n.pk);
         }
     }.cmp;
     return struct {
@@ -135,7 +136,7 @@ fn KBucket(comptime KBucketNode: type) type {
             } else return null;
         }
         pub fn tryAdd(self: *Self, base_pk: *const PublicKey, new_node: NewNode, evict: bool) bool {
-            log.info("step into", {});
+            //log.info("step into", {});
             const res = binarySearch(Node, &new_node.pk, self.nodes.items, base_pk, cmpFn);
             if (res.found) {
                 self.nodes.items[res.index] = new_node;
@@ -171,7 +172,8 @@ fn KBucket(comptime KBucketNode: type) type {
                         eviction_index = i;
                     }
                     _ = self.nodes.orderedRemove(eviction_index);
-                    const i = res.index - @as(usize, if (eviction_index < res.index) 1 else 0);
+                    const cor = @as(usize, if (eviction_index < res.index) 1 else 0);
+                    const i = res.index - cor;
                     self.nodes.insertAssumeCapacity(i, new_node);
                 } else {
                     self.nodes.insertAssumeCapacity(res.index, new_node);
@@ -228,6 +230,9 @@ test "KBucket" {
         const node = PackedNode{ .saddr = addr, .pk = pk_i };
         try expect(kbucket.tryAdd(&pk, node, false));
     }
+    //for (0..8) |i| {
+    //    std.debug.print("i:{d} p:{d}\n", .{ i, kbucket_buffer[i].pk[0] });
+    //}
     const closer_node = PackedNode{
         .saddr = Address.initIp4(.{ 1, 2, 3, 5 }, 12345),
         .pk = [_]u8{1} ** pk_size,
@@ -241,9 +246,9 @@ test "KBucket" {
         .pk = [_]u8{2} ** pk_size,
     };
     // can't add a new farther node
-    try expect(!kbucket.tryAdd(&pk, farther_node, false));
-    // can't add a new farther node with eviction
     try expect(!kbucket.tryAdd(&pk, farther_node, true));
+    // can't add a new farther node with eviction
+    try expect(!kbucket.tryAdd(&pk, farther_node, false));
     // can't add a new closer node
     try expect(!kbucket.tryAdd(&pk, closer_node, false));
     // can add a new closer node with eviction
