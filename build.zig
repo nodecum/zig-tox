@@ -45,6 +45,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
     tox_tests.addModule("sodium", sodium);
+
     tox_tests.linkLibrary(c_libsodium_lib);
     const run_tox_tests = b.addRunArtifact(tox_tests);
 
