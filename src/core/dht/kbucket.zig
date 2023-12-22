@@ -9,6 +9,9 @@ const log = std.log.scoped(.kbucket);
 
 const PublicKey = sodium.PublicKey;
 const PackedNode = tox.packet.dht.PackedNode;
+const Instant = tox.core.time.Instant;
+const DhtNode = tox.core.dht.node.DhtNode;
+const KBucketDhtNode = tox.core.dht.node.KBucketDhtNode;
 const Address = net.Address;
 const Order = std.math.Order;
 const ArrayListUnmanaged = std.ArrayListUnmanaged;
@@ -18,7 +21,7 @@ const binarySearch = tox.sort.binarySearch;
 /// to "own" PK.
 /// According to the [spec](https://zetok.github.io/tox-spec#bucket-index).
 /// Fails (returns `None`) only if supplied keys are the same.
-pub fn kbucket_index(own: *const PublicKey, other: *const PublicKey) ?u8 {
+pub fn kbucketIndex(own: *const PublicKey, other: *const PublicKey) ?u8 {
     for (own, other, 0..) |x, y, i| {
         const byte = x ^ y;
         for (0..8) |j| {
@@ -36,9 +39,9 @@ test "kbucket index test" {
     const pk1 = [_]u8{0b10_10_10_10} ** size;
     const pk2 = [_]u8{0} ** size;
     const pk3 = [_]u8{0b00_10_10_10} ** size;
-    try expectEqual(kbucket_index(&pk1, &pk1), null);
-    try expectEqual(kbucket_index(&pk1, &pk2), 0);
-    try expectEqual(kbucket_index(&pk2, &pk3), 2);
+    try expectEqual(kbucketIndex(&pk1, &pk1), null);
+    try expectEqual(kbucketIndex(&pk1, &pk2), 0);
+    try expectEqual(kbucketIndex(&pk2, &pk3), 2);
 }
 
 /// Check whether distance between PK1 and own PK is smaller than distance
@@ -76,28 +79,32 @@ const KBucketPackedNode = struct {
     const NewNode = PackedNode;
     const CheckNode = PackedNode;
     /// Check if the node can be updated with a new one.
-    fn is_outdated(self: Node, other: CheckNode) bool {
+    pub fn isOutdated(self: Node, other: CheckNode) bool {
         return self.saddr != other.saddr;
     }
     /// Update the existing node with a new one.
-    fn update(self: *Node, other: NewNode) void {
-        self.*.saddr = other.saddr;
+    pub fn update(self: *Node, other: NewNode, rcv_time: Instant) void {
+        _ = rcv_time;
+        self.* = other;
     }
     /// Check if the node can be evicted.
-    fn is_evictable(self: Node) bool {
+    pub fn isEvictable(self: Node, now: Instant) bool {
+        _ = now;
         _ = self;
         return false;
     }
     /// Find the index of a node that should be evicted in case if `Kbucket` is
     /// full. It must return `Some` if and only if nodes list contains at least
     /// one evictable node.
-    fn eviction_index(nodes: []Node) ?usize {
+    pub fn evictionIndex(nodes: []Node, now: Instant) ?usize {
+        _ = now;
         _ = nodes;
         return null;
     }
-    //   fn eviction_index(nodes: &[Self]) -> Option<usize> {
-    //        nodes.iter().rposition(|node| node.is_evictable())
-    //    }
+    pub fn intoNode(n: NewNode, now: Instant) Node {
+        _ = now;
+        return n;
+    }
 };
 
 /// Default number of nodes that kbucket can hold.
@@ -108,6 +115,7 @@ fn KBucket(comptime KBucketNode: type) type {
     const NewNode = comptime KBucketNode.NewNode;
     const CheckNode = comptime KBucketNode.CheckNode;
     _ = CheckNode;
+    const intoNode = KBucketNode.intoNode;
     const cmpFn = struct {
         fn cmp(k0: *const PublicKey, k2: *const PublicKey, n: Node) Order {
             return distance(k0, k2, &n.pk);
@@ -135,11 +143,17 @@ fn KBucket(comptime KBucketNode: type) type {
                 return self.nodes.items[i];
             } else return null;
         }
-        pub fn tryAdd(self: *Self, base_pk: *const PublicKey, new_node: NewNode, evict: bool) bool {
+        pub fn tryAdd(
+            self: *Self,
+            base_pk: *const PublicKey,
+            new_node: NewNode,
+            now: Instant,
+            evict: bool,
+        ) bool {
             //log.info("step into", {});
             const res = binarySearch(Node, &new_node.pk, self.nodes.items, base_pk, cmpFn);
             if (res.found) {
-                self.nodes.items[res.index] = new_node;
+                KBucketNode.update(&self.nodes.items[res.index], new_node, now);
                 return true;
             } else if (evict == false or res.index == self.nodes.items.len) {
                 // index is pointing past the end
@@ -147,11 +161,11 @@ fn KBucket(comptime KBucketNode: type) type {
                 // node is the farthest one
                 if (self.nodes.capacity == self.nodes.items.len) {
                     // list is full
-                    if (KBucketNode.eviction_index(self.nodes.items)) |eviction_index| {
+                    if (KBucketNode.evictionIndex(self.nodes.items, now)) |eviction_index| {
                         // replace the farthest bad node
                         _ = self.nodes.orderedRemove(eviction_index);
                         const i = res.index - @as(usize, if (eviction_index < res.index) 1 else 0);
-                        self.nodes.insertAssumeCapacity(i, new_node);
+                        self.nodes.insertAssumeCapacity(i, intoNode(new_node, now));
                         return true;
                     } else {
                         // Node can't be added to the kbucket.
@@ -160,7 +174,7 @@ fn KBucket(comptime KBucketNode: type) type {
                 } else {
                     // distance to the PK was bigger than the other keys, but
                     // there's still free space in the kbucket for a node
-                    self.nodes.insertAssumeCapacity(res.index, new_node);
+                    self.nodes.insertAssumeCapacity(res.index, intoNode(new_node, now));
                     return true;
                 }
             } else {
@@ -168,15 +182,15 @@ fn KBucket(comptime KBucketNode: type) type {
                 // we are going to evict the farthest node if the kbucket is full
                 if (self.nodes.capacity == self.nodes.items.len) {
                     var eviction_index = self.nodes.items.len - 1;
-                    if (KBucketNode.eviction_index(self.nodes.items)) |i| {
+                    if (KBucketNode.evictionIndex(self.nodes.items, now)) |i| {
                         eviction_index = i;
                     }
                     _ = self.nodes.orderedRemove(eviction_index);
                     const cor = @as(usize, if (eviction_index < res.index) 1 else 0);
                     const i = res.index - cor;
-                    self.nodes.insertAssumeCapacity(i, new_node);
+                    self.nodes.insertAssumeCapacity(i, intoNode(new_node, now));
                 } else {
-                    self.nodes.insertAssumeCapacity(res.index, new_node);
+                    self.nodes.insertAssumeCapacity(res.index, intoNode(new_node, now));
                 }
                 return true;
             }
@@ -207,11 +221,11 @@ fn KBucket(comptime KBucketNode: type) type {
             return self.nodes.capacity;
         }
         /// Check if `Kbucket` is empty.
-        pub fn is_empty(self: Self) bool {
+        pub fn isEmpty(self: Self) bool {
             return self.len() == 0;
         }
         /// Check if `Kbucket` is full.
-        pub fn is_full(self: Self) bool {
+        pub fn isFull(self: Self) bool {
             return self.nodes.items.len == self.nodes.capacity;
         }
     };
@@ -221,14 +235,14 @@ test "KBucket" {
     const pk_size = @typeInfo(PublicKey).Array.len;
     const pk = [_]u8{0x00} ** pk_size;
 
-    var kbucket_buffer: [kbucket_default_size]PackedNode = undefined;
-    var kbucket = KBucket(KBucketPackedNode).init(&kbucket_buffer);
+    var kbucket_buffer: [kbucket_default_size]DhtNode = undefined;
+    var kbucket = KBucket(KBucketDhtNode).init(&kbucket_buffer);
 
     for (0..8) |i| {
         const addr = Address.initIp4(.{ 1, 2, 3, 4 }, @as(u16, 12345) + @as(u16, @intCast(i)));
         const pk_i = [_]u8{@as(u8, @intCast(i + 2))} ** pk_size;
         const node = PackedNode{ .saddr = addr, .pk = pk_i };
-        try expect(kbucket.tryAdd(&pk, node, false));
+        try expect(kbucket.tryAdd(&pk, node, Instant.now(), false));
     }
     //for (0..8) |i| {
     //    std.debug.print("i:{d} p:{d}\n", .{ i, kbucket_buffer[i].pk[0] });
@@ -245,14 +259,15 @@ test "KBucket" {
         .saddr = Address.initIp4(.{ 1, 2, 3, 5 }, 12347),
         .pk = [_]u8{2} ** pk_size,
     };
+    const now = Instant.now();
     // can't add a new farther node
-    try expect(!kbucket.tryAdd(&pk, farther_node, true));
+    try expect(!kbucket.tryAdd(&pk, farther_node, now, true));
     // can't add a new farther node with eviction
-    try expect(!kbucket.tryAdd(&pk, farther_node, false));
+    try expect(!kbucket.tryAdd(&pk, farther_node, now, false));
     // can't add a new closer node
-    try expect(!kbucket.tryAdd(&pk, closer_node, false));
+    try expect(!kbucket.tryAdd(&pk, closer_node, now, false));
     // can add a new closer node with eviction
-    try expect(kbucket.tryAdd(&pk, closer_node, true));
+    try expect(kbucket.tryAdd(&pk, closer_node, now, true));
     // can update a node
-    try expect(kbucket.tryAdd(&pk, existing_node, false));
+    try expect(kbucket.tryAdd(&pk, existing_node, now, false));
 }
