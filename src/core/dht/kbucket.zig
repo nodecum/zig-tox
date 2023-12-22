@@ -9,9 +9,11 @@ const log = std.log.scoped(.kbucket);
 
 const PublicKey = sodium.PublicKey;
 const PackedNode = tox.packet.dht.PackedNode;
-const Instant = tox.core.time.Instant;
-const DhtNode = tox.core.dht.node.DhtNode;
-const KBucketDhtNode = tox.core.dht.node.KBucketDhtNode;
+const time = tox.core.time;
+const Instant = time.Instant;
+const dht = tox.core.dht;
+const DhtNode = dht.node.DhtNode;
+const KBucketDhtNode = dht.node.KBucketDhtNode;
 const Address = net.Address;
 const Order = std.math.Order;
 const ArrayListUnmanaged = std.ArrayListUnmanaged;
@@ -231,7 +233,8 @@ fn KBucket(comptime KBucketNode: type) type {
     };
 }
 
-test "KBucket" {
+test "KBucket try add" {
+    try time.startTimerNow();
     const pk_size = @typeInfo(PublicKey).Array.len;
     const pk = [_]u8{0x00} ** pk_size;
 
@@ -270,4 +273,30 @@ test "KBucket" {
     try expect(kbucket.tryAdd(&pk, closer_node, now, true));
     // can update a node
     try expect(kbucket.tryAdd(&pk, existing_node, now, false));
+}
+
+test "KBucket try add should replace bad nodes" {
+    try time.startTimerNow();
+    const pk_size = @typeInfo(PublicKey).Array.len;
+    const pk = [_]u8{0x00} ** pk_size;
+
+    var kbucket_buffer: [1]DhtNode = undefined;
+    var kbucket = KBucket(KBucketDhtNode).init(&kbucket_buffer);
+
+    const node_1 = PackedNode{
+        .saddr = Address.initIp4(.{ 1, 2, 3, 4 }, 12345),
+        .pk = [_]u8{1} ** pk_size,
+    };
+
+    const node_2 = PackedNode{
+        .saddr = Address.initIp4(.{ 1, 2, 3, 4 }, 12346),
+        .pk = [_]u8{2} ** pk_size,
+    };
+
+    try expect(kbucket.tryAdd(&pk, node_2, Instant.now(), false));
+    try expect(!kbucket.tryAdd(&pk, node_1, Instant.now(), false));
+
+    time.advanceTime(dht.node.bad_node_timeout + 10);
+    // replacing bad node
+    try expect(kbucket.tryAdd(&pk, node_1, Instant.now(), false));
 }

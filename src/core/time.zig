@@ -57,10 +57,3 @@ test "advance time" {
     const later = Instant.now();
     try expect(later.since(earlier) >= 10);
 }
-test "reveerse iter" {
-    var n: usize = 0;
-    for (0..3) |i| {
-        n += i;
-    }
-    try expect(n == 3);
-}
