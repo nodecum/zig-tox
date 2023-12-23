@@ -233,9 +233,10 @@ fn KBucket(comptime KBucketNode: type) type {
     };
 }
 
+const pk_size = @typeInfo(PublicKey).Array.len;
+
 test "KBucket try add" {
     try time.startTimerNow();
-    const pk_size = @typeInfo(PublicKey).Array.len;
     const pk = [_]u8{0x00} ** pk_size;
 
     var kbucket_buffer: [kbucket_default_size]DhtNode = undefined;
@@ -277,7 +278,6 @@ test "KBucket try add" {
 
 test "KBucket try add should replace bad nodes" {
     try time.startTimerNow();
-    const pk_size = @typeInfo(PublicKey).Array.len;
     const pk = [_]u8{0x00} ** pk_size;
 
     var kbucket_buffer: [1]DhtNode = undefined;
@@ -299,4 +299,56 @@ test "KBucket try add should replace bad nodes" {
     time.advanceTime(dht.node.bad_node_timeout + 10);
     // replacing bad node
     try expect(kbucket.tryAdd(&pk, node_1, Instant.now(), false));
+}
+
+test "kbucket try add should replace bad nodes in the middle" {
+    try time.startTimerNow();
+    const pk = [_]u8{0x00} ** pk_size;
+
+    var kbucket_buffer: [3]DhtNode = undefined;
+    var kbucket = KBucket(KBucketDhtNode).init(&kbucket_buffer);
+
+    const pk_1 = [_]u8{0x01} ** pk_size;
+    const pk_2 = [_]u8{0x02} ** pk_size;
+    const pk_3 = [_]u8{0x03} ** pk_size;
+    const pk_4 = [_]u8{0x04} ** pk_size;
+
+    const node_1 = PackedNode{ .saddr = Address.initIp4(.{ 1, 2, 3, 4 }, 12345), .pk = pk_1 };
+    const node_2 = PackedNode{ .saddr = Address.initIp4(.{ 1, 2, 3, 4 }, 12346), .pk = pk_2 };
+    const node_3 = PackedNode{ .saddr = Address.initIp4(.{ 1, 2, 3, 4 }, 12346), .pk = pk_3 };
+    const node_4 = PackedNode{ .saddr = Address.initIp4(.{ 1, 2, 3, 4 }, 12346), .pk = pk_4 };
+
+    try expect(kbucket.tryAdd(&pk, node_2, Instant.now(), false));
+    time.advanceTime(dht.node.bad_node_timeout + 10);
+    try expect(kbucket.tryAdd(&pk, node_3, Instant.now(), false));
+    try expect(kbucket.tryAdd(&pk, node_4, Instant.now(), false));
+    try expect(kbucket.tryAdd(&pk, node_1, Instant.now(), false));
+
+    try expect(!kbucket.contains(&pk, &pk_2));
+    try expect(kbucket.contains(&pk, &pk_1));
+    try expect(kbucket.contains(&pk, &pk_3));
+    try expect(kbucket.contains(&pk, &pk_4));
+}
+
+test "kbucket try add evict should replace bad nodes" {
+    try time.startTimerNow();
+    const pk = [_]u8{0x00} ** pk_size;
+
+    var kbucket_buffer: [1]DhtNode = undefined;
+    var kbucket = KBucket(KBucketDhtNode).init(&kbucket_buffer);
+
+    const node_1 = PackedNode{
+        .saddr = Address.initIp4(.{ 1, 2, 3, 4 }, 12345),
+        .pk = [_]u8{1} ** pk_size,
+    };
+    const node_2 = PackedNode{
+        .saddr = Address.initIp4(.{ 1, 2, 3, 4 }, 12346),
+        .pk = [_]u8{2} ** pk_size,
+    };
+
+    try expect(kbucket.tryAdd(&pk, node_1, Instant.now(), true));
+    try expect(!kbucket.tryAdd(&pk, node_2, Instant.now(), true));
+    time.advanceTime(dht.node.bad_node_timeout + 10);
+    // replacing bad node
+    try expect(kbucket.tryAdd(&pk, node_2, Instant.now(), true));
 }
