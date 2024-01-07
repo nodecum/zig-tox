@@ -3,12 +3,14 @@
     .version = "0.0.1",
     .dependencies = .{
         .libsodium = .{
-	    .url="https://github.com/jedisct1/libsodium/archive/93a6e79750a31bc0b946bf483b2ba1c77f9e94ce.tar.gz",
-	    .hash="1220f4d80a9bd3cf5db236a469020fbcd2e14ceb91fd2f775e3142ddccaee2b8698d",
-        },
+              .url = "https://github.com/jedisct1/libsodium/archive/56bef8abc59b6db7ce5a94ebce5d0843313d3ce2.tar.gz",
+            .hash = "1220af4c5faf5ab037d3e574d462d47a01796eabdf7c32e52220d4065922a2ed8f55",  
+     },
     },
     .paths = .{
         "build.zig",
         "build.zig.zon",
+        "src",
+        "apps",
     },
 }

@@ -1,22 +1,12 @@
 const std = @import("std");
+const Build = std.Build;
 
 const APPS = .{
     "key",
 };
 
-// Although this function looks imperative, note that its job is to
-// declaratively construct a build graph that will be executed by an external
-// runner.
-pub fn build(b: *std.Build) void {
-    // Standard target options allows the person running `zig build` to choose
-    // what target to build for. Here we do not override the defaults, which
-    // means any target is allowed, and the default is native. Other options
-    // for restricting supported target set are available.
+pub fn build(b: *Build) void {
     const target = b.standardTargetOptions(.{});
-
-    // Standard optimization options allow the person running `zig build` to select
-    // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall. Here we do not
-    // set a preferred release mode, allowing the user to decide how to optimize.
     const optimize = b.standardOptimizeOption(.{});
 
     const libsodium_dep = b.dependency(
@@ -32,11 +22,11 @@ pub fn build(b: *std.Build) void {
     const c_libsodium_lib = libsodium_dep.artifact("sodium");
 
     const tox = b.addModule("tox", .{
-        .source_file = .{ .path = "src/tox.zig" },
+        .root_source_file = .{ .path = "src/tox.zig" },
     });
 
     const sodium = b.addModule("sodium", .{
-        .source_file = .{ .path = "src/sodium.zig" },
+        .root_source_file = .{ .path = "src/sodium.zig" },
     });
 
     const tox_tests = b.addTest(.{
@@ -44,7 +34,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    tox_tests.addModule("sodium", sodium);
+    tox_tests.root_module.addImport("sodium", sodium);
 
     tox_tests.linkLibrary(c_libsodium_lib);
     b.installArtifact(tox_tests);
@@ -64,8 +54,8 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
         });
-        app.addModule("sodium", sodium);
-        app.addModule("tox", tox);
+        app.root_module.addImport("sodium", sodium);
+        app.root_module.addImport("tox", tox);
 
         app.linkLibrary(c_libsodium_lib);
 

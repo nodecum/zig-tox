@@ -1,13 +1,12 @@
 const std = @import("std");
 const tox = @import("../../tox.zig");
-const sodium = @import("sodium");
 const net = std.net;
 const testing = std.testing;
 const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
 const log = std.log.scoped(.kbucket);
 
-const PublicKey = sodium.PublicKey;
+const PublicKey = tox.crypto.PublicKey;
 const PackedNode = tox.packet.dht.PackedNode;
 const time = tox.core.time;
 const Instant = time.Instant;

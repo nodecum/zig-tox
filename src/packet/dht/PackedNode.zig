@@ -1,7 +1,7 @@
 const std = @import("std");
-const sodium = @import("sodium");
+const tox = @import("../../tox.zig");
 const Address = std.net.Address;
-const PublicKey = sodium.PublicKey;
+const PublicKey = tox.crypto.PublicKey;
 pub const PackedNode = @This();
 
 /// Socket Addr of node.
