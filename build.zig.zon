@@ -2,10 +2,10 @@
     .name = "zig-tox",
     .version = "0.0.1",
     .dependencies = .{
-        .libsodium = .{
-              .url = "https://github.com/jedisct1/libsodium/archive/56bef8abc59b6db7ce5a94ebce5d0843313d3ce2.tar.gz",
-            .hash = "1220af4c5faf5ab037d3e574d462d47a01796eabdf7c32e52220d4065922a2ed8f55",  
-     },
+        .@"c-toxcore" = .{
+            .url = "https://github.com/nodecum/c-toxcore/archive/9f5eb26095e397c161778aad2f2b0d76dfda17ec.tar.gz",
+            .hash = "12203c61fa1d9e9b8eeb6c7591f68531463d557652fb6ea2df90eeb0a4e03685b998",
+        },
     },
     .paths = .{
         "build.zig",

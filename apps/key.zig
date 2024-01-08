@@ -2,10 +2,9 @@ const std = @import("std");
 const cr = @import("tox").crypto;
 
 pub fn main() !void {
-    const kp = try cr.KeyPair.create(null);
-
     const bytesToHex = std.fmt.fmtSliceHexUpper;
 
+    const kp = try cr.KeyPair.create(null);
     std.debug.print(
         ".secret_key=\"{s}\",\n",
         .{bytesToHex(&kp.secret_key)},

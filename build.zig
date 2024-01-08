@@ -9,8 +9,8 @@ pub fn build(b: *Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const libsodium_dep = b.dependency(
-        "libsodium",
+    const c_toxcore_dep = b.dependency(
+        "c-toxcore",
         .{
             .target = target,
             .optimize = optimize,
@@ -18,15 +18,9 @@ pub fn build(b: *Build) void {
             .shared = false,
         },
     );
-
-    const c_libsodium_lib = libsodium_dep.artifact("sodium");
-
+    const c_toxcore_lib = c_toxcore_dep.artifact("toxcore");
     const tox = b.addModule("tox", .{
         .root_source_file = .{ .path = "src/tox.zig" },
-    });
-
-    const sodium = b.addModule("sodium", .{
-        .root_source_file = .{ .path = "src/sodium.zig" },
     });
 
     const tox_tests = b.addTest(.{
@@ -34,9 +28,9 @@ pub fn build(b: *Build) void {
         .target = target,
         .optimize = optimize,
     });
-    tox_tests.root_module.addImport("sodium", sodium);
+    tox_tests.linkLibrary(c_toxcore_lib);
+    tox_tests.addIncludePath(c_toxcore_dep.path("."));
 
-    tox_tests.linkLibrary(c_libsodium_lib);
     b.installArtifact(tox_tests);
 
     const run_tox_tests = b.addRunArtifact(tox_tests);
@@ -54,10 +48,7 @@ pub fn build(b: *Build) void {
             .target = target,
             .optimize = optimize,
         });
-        app.root_module.addImport("sodium", sodium);
         app.root_module.addImport("tox", tox);
-
-        app.linkLibrary(c_libsodium_lib);
 
         var run = b.addRunArtifact(app);
         if (b.args) |args| run.addArgs(args);
