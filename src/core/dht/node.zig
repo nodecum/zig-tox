@@ -4,7 +4,7 @@ const PublicKey = tox.crypto.PublicKey;
 const Ip4Address = std.net.Ip4Address;
 const Ip6Address = std.net.Ip6Address;
 const Address = std.net.Address;
-const AF = std.os.AF;
+const AF = std.posix.AF;
 const Instant = tox.core.time.Instant;
 const PackedNode = tox.packet.dht.PackedNode;
 

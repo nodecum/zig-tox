@@ -2,9 +2,10 @@
     .name = "zig-tox",
     .version = "0.0.1",
     .dependencies = .{
-        .@"c-toxcore" = .{
-            .url = "https://github.com/nodecum/c-toxcore/archive/9f5eb26095e397c161778aad2f2b0d76dfda17ec.tar.gz",
-            .hash = "12203c61fa1d9e9b8eeb6c7591f68531463d557652fb6ea2df90eeb0a4e03685b998",
+        .@"c-toxcore-build-with-zig" = .{
+            .url = "https://github.com/nodecum/c-toxcore-build-with-zig/archive/c37ca2a97f0f97404facd7ac18e981f8f6b421ee.tar.gz",
+            .hash = "1220bcb9ad0aec01e1448b67ffa2e8b2e37fd5a259f402d86bdae6172b2a98c8b89c",
+            .lazy = true,
         },
     },
     .paths = .{

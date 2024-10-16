@@ -36,7 +36,7 @@ pub fn kbucketIndex(own: *const PublicKey, other: *const PublicKey) ?u8 {
 }
 
 test "kbucket index test" {
-    const size = @typeInfo(PublicKey).Array.len;
+    const size = @typeInfo(PublicKey).array.len;
     const pk1 = [_]u8{0b10_10_10_10} ** size;
     const pk2 = [_]u8{0} ** size;
     const pk3 = [_]u8{0b00_10_10_10} ** size;
@@ -61,7 +61,7 @@ pub fn distance(
 }
 
 test "kbucket distance test" {
-    const size = @typeInfo(PublicKey).Array.len;
+    const size = @typeInfo(PublicKey).array.len;
     const pk_00 = [_]u8{0x00} ** size;
     const pk_01 = [_]u8{0x01} ** size;
     const pk_02 = [_]u8{0x02} ** size;
@@ -232,7 +232,7 @@ fn KBucket(comptime KBucketNode: type) type {
     };
 }
 
-const pk_size = @typeInfo(PublicKey).Array.len;
+const pk_size = @typeInfo(PublicKey).array.len;
 
 test "KBucket try add" {
     try time.startTimerNow();
